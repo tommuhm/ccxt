@@ -1036,7 +1036,7 @@ module.exports = class binance extends Exchange {
         const symbol = this.findSymbol (this.safeString (data, 's'));
         const market = this.market (symbol);
         const trade = this.parseTrade(data, market);
-        this.emit('trade', trade);
+        this.emit('trade', symbol, trade);
     }
 
     _websocketHandleObRestSnapshot (context, error, response) {
