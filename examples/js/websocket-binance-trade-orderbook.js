@@ -32,17 +32,7 @@ class WSHandler {
     return new WSHandler(exchange);
   }
 
-  tradeResult(trade) {
-    console.log(`tradeResult - ${logS(this.exchange.name, trade.symbol)}`);
-    console.log(JSON.stringify(trade));
-  }
-
-  orderBookResult(symbol, orderbook) {
-    console.log(`orderBookResult - ${logS(this.exchange.name, symbol)}`);
-    console.log(JSON.stringify(orderbook));
-  }
-
-  async startTrades(symbol) {
+  async startTrades(symbol, cb) {
     console.log(`startTrades - ${logS(this.exchange.name, symbol)}`);
 
     if (this.subscriptions.trade[symbol]) {
@@ -50,7 +40,10 @@ class WSHandler {
       return;
     }
 
-    this.subscriptions.trade[symbol] = this.tradeResult.bind(this);
+    this.subscriptions.trade[symbol] = ((eventSymbol, trade) => {
+      eventSymbol == symbol && cb(trade);
+    }).bind(this)
+    
     await this.exchange.on('trade', this.subscriptions.trade[symbol]);
     await this.exchange.websocketSubscribe('trade', symbol);
 
@@ -72,7 +65,7 @@ class WSHandler {
     console.log(`stopTrades - unsubscribed - ${logS(this.exchange.name, symbol)}`);
   }
 
-  async startOrderBook(symbol, limit) {
+  async startOrderBook(symbol, limit, cb) {
     console.log(`startOrderBook - ${logS(this.exchange.name, symbol)}`);
 
     if (this.subscriptions.ob[symbol]) {
@@ -80,7 +73,10 @@ class WSHandler {
       return;
     }
 
-    this.subscriptions.ob[symbol] = this.orderBookResult.bind(this);
+    this.subscriptions.ob[symbol] = ((eventSymbol, orderbook) => {
+      eventSymbol == symbol && cb(orderbook);
+    }).bind(this)
+
     await this.exchange.on('ob', this.subscriptions.ob[symbol]);
     await this.exchange.websocketSubscribe('ob', symbol, { 'limit': limit });
 
@@ -102,9 +98,9 @@ class WSHandler {
     console.log(`stopOrderBook - unsubscribed - ${logS(this.exchange.name, symbol)}`);
   }
   
-  async testOrderBook(symbol) {
+  async testOrderBook(symbol, cb) {
     try {
-      await this.startOrderBook(symbol, 10);
+      await this.startOrderBook(symbol, 10, cb);
       await sleep(15*1000);
       await this.stopOrderBook(symbol);
     } catch (ex) {
@@ -114,9 +110,9 @@ class WSHandler {
     }
   }
 
-  async testTrades(symbol) {
+  async testTrades(symbol, cb) {
     try {
-      await this.startTrades(symbol);
+      await this.startTrades(symbol, cb);
       await sleep(15*1000);
       await this.stopTrades(symbol);
     } catch (ex) {
@@ -132,13 +128,34 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const logS = (exchange, symbol) => `exchange: ${exchange}, symbol: ${symbol}`;
 
+const tradeResult = (exchange, symbol, trade) => {
+  console.log(`trade - ${logS(exchange, symbol)} - price: ${trade.price}, amount: ${trade.amount}`);
+}
+
+const orderBookResult = (exchange, symbol, orderbook)  => {
+  console.log(`orderBook - ${logS(exchange, symbol)} - nounce: ${orderbook.nonce}`);
+  // console.log(JSON.stringify(orderbook));
+}
 
 async function run() {
   const exchange = new ccxt.binance();
   const wsHandler = await WSHandler.create(exchange);
   
-  await wsHandler.testOrderBook('BTC/USDT');
-  await wsHandler.testTrades('ETH/BTC');
+  wsHandler.testOrderBook(
+    'BTC/USDT', 
+    (orderbook) => orderBookResult(exchange.name, 'BTC/USDT', orderbook)
+  );
+
+  wsHandler.testTrades(
+    'ETH/BTC',
+    (trade) => tradeResult(exchange.name, 'ETH/BTC', trade)
+  );
+
+  wsHandler.testTrades(
+    'BTC/USDT',
+    (trade) => tradeResult(exchange.name, 'BTC/USDT', trade)
+  );
+
 }
 
 run();
