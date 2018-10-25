@@ -1,4 +1,4 @@
-declare module 'ccxt' {
+declare module 'ccxt-sockets' {
 
     // error.js -----------------------------------------
 
